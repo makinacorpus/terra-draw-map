@@ -25,6 +25,7 @@ export default class TerraDrawMap extends Component {
       center: this.props.center,
       zoom: this.props.zoom,
       maxBounds: this.props.maxBounds,
+      renderer: L.canvas(),
     });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
