@@ -6,7 +6,7 @@ describe('Map Test', () => {
   let browser;
   let page;
   beforeAll(async () => {
-    browser = await puppeteer.launch({ headless: false });
+    browser = await puppeteer.launch({ headless: true });
     page = await browser.newPage();
     await page.goto('http://localhost:3000/');
   }, timeout);
