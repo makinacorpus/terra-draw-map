@@ -68,6 +68,7 @@ class App extends Component {
   constructor () {
     super();
     this.state = {
+      config: { layers: [polygon, line] },
       dataOnClickDisplay: null,
       dataOnDrawDisplay: {},
     };
