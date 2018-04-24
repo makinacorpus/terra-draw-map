@@ -70,7 +70,7 @@ export default class TerraDrawMap extends Component {
 
     this.map.on(L.Draw.Event.DELETED, deletedData => this.onDrawDelete(deletedData));
 
-    if (
+    if (this.props.config &&
       Object.prototype.hasOwnProperty.call(this.props.config, 'layers') &&
       this.props.config.layers.length
     ) {
