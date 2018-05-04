@@ -6,7 +6,9 @@ import "openlayers/dist/ol.css";
 class TerraDrawMap extends Component {
   componentDidMount() {
     const sourceLayer = new ol.layer.Tile({
-      source: new ol.source.OSM(this.props.osmSource)
+      source: new ol.source.OSM({
+        url: this.props.osmSource
+      })
     });
     this.sourceDraw = new ol.source.Vector({ wrapX: false });
     const vectorDraw = new ol.layer.Vector({
@@ -161,11 +163,13 @@ class TerraDrawMap extends Component {
 }
 
 TerraDrawMap.propTypes = {
+  config: PropTypes.any,
   minZoom: PropTypes.number,
   maxZoom: PropTypes.number,
   zoom: PropTypes.number,
   center: PropTypes.arrayOf(PropTypes.number),
   maxBounds: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.number)),
+  osmSource: PropTypes.string,
   getGeometryOnDrawEnd: PropTypes.func,
   getDataOnClick: PropTypes.func,
   getDataOnHover: PropTypes.func
@@ -178,7 +182,7 @@ TerraDrawMap.defaultProps = {
   zoom: 11,
   center: [2.62322, 48.40813],
   maxBounds: [[2.2917527636, 48.1867854393], [3.1004132613, 48.6260818006]],
-  osmSource: ""
+  osmSource: "https://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 };
 
 export default TerraDrawMap;
