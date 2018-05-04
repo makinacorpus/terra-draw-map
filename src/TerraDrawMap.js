@@ -1,213 +1,136 @@
-/* eslint no-underscore-dangle:off */
-
 import React, { Component } from "react";
 import PropTypes from "prop-types";
-import flatten from "@turf/flatten";
-import { polygon, lineString } from "@turf/helpers";
-import booleanIntersects from "@turf/boolean-intersects";
-import L from "leaflet";
-import "leaflet-draw";
-import "leaflet-draw/dist/leaflet.draw.css";
-import "leaflet/dist/leaflet.css";
+import ol from "openlayers";
+import "openlayers/dist/ol.css";
 
-export default class TerraDrawMap extends Component {
-  constructor() {
-    super();
-    this.state = {
-      drawObjects: []
-    };
-  }
-
+class TerraDrawMap extends Component {
   componentDidMount() {
-    const editableLayers = new L.FeatureGroup();
-
-    this.map = L.map(this.mapContainer, {
-      center: this.props.center,
-      zoom: this.props.zoom,
-      maxBounds: this.props.maxBounds,
-      renderer: L.canvas()
+    const sourceLayer = new ol.layer.Tile({
+      source: new ol.source.OSM(this.props.osmSource)
     });
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(this.map);
-
-    this.map.addLayer(editableLayers);
-
-    const options = {
-      position: "topright",
-      draw: {
-        polyline: false,
-        polygon: {
-          allowIntersection: false,
-          drawError: {
-            color: "#e1e100",
-            message: "<strong>Oh snap!<strong> you can't draw that!"
-          },
-          shapeOptions: {
-            color: "red"
+    this.sourceDraw = new ol.source.Vector({ wrapX: false });
+    const vectorDraw = new ol.layer.Vector({
+      source: this.sourceDraw
+    });
+    let vectorLayers = [];
+    this.props.config.vectorLayers.forEach(layer => {
+      const vectorLayer = new ol.layer.VectorTile({
+        name: layer.name,
+        maxResolution: 156543.03392804097 / Math.pow(2, layer.minZoom - 1),
+        source: new ol.source.VectorTile({
+          format: new ol.format.MVT(),
+          url: layer.url,
+          renderMode: "hybrid"
+        }),
+        style: (feature, resolution) => {
+          if (layer.type === "line") {
+            return new ol.style.Style({
+              stroke: new ol.style.Stroke(
+                layer.style.draw(feature.get(layer.style.property))
+              )
+            });
           }
-        },
-        circle: false,
-        circlemarker: false,
-        rectangle: false,
-        marker: false
-      },
-      edit: {
-        featureGroup: editableLayers,
-        remove: true
-      }
-    };
-
-    const drawControl = new L.Control.Draw(options);
-
-    this.map.addControl(drawControl);
-
-    this.map.on(L.Draw.Event.CREATED, createData =>
-      this.onDrawCreate(createData, editableLayers)
-    );
-
-    this.map.on(L.Draw.Event.EDITED, updatedData =>
-      this.onDrawUpdate(updatedData)
-    );
-
-    this.map.on(L.Draw.Event.DELETED, deletedData =>
-      this.onDrawDelete(deletedData)
-    );
-
-    if (
-      this.props.config &&
-      Object.prototype.hasOwnProperty.call(this.props.config, "layers") &&
-      this.props.config.layers.length
-    ) {
-      this.setState({
-        config: this.addData(this.props.config, this.props.getDataOnClick)
-      }); // eslint-disable-line
-    }
-  }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    if (
-      !nextState.config &&
-      Object.prototype.hasOwnProperty.call(nextProps.config, "layers") &&
-      nextProps.config.layers.length &&
-      nextProps.config !== nextState.config &&
-      this.map
-    ) {
-      this.setState({
-        config: this.addData(nextProps.config, nextProps.getDataOnClick)
-      });
-      return true;
-    }
-    return false;
-  }
-
-  onDrawUpdate(updatedObjects) {
-    let currentForm;
-    const drawObjects = { ...this.state.drawObjects };
-
-    [Object.keys(updatedObjects.layers._layers)][0].forEach(updatedLayer => {
-      const intersectsObject = [];
-
-      const drawbbox = polygon(
-        updatedObjects.layers._layers[updatedLayer].toGeoJSON().geometry
-          .coordinates
-      );
-
-      this.state.config.layers.forEach(layer => {
-        if (layer.display) {
-          layer.data.features.forEach(feature => {
-            try {
-              currentForm =
-                feature.geometry.type === "LineString"
-                  ? lineString(feature.geometry.coordinates)
-                  : polygon(feature.geometry.coordinates);
-              if (booleanIntersects(currentForm, drawbbox)) {
-                intersectsObject.push(feature);
-              }
-            } catch (e) {
-              console.error("error", e, feature); // eslint-disable-line no-console
-            }
-          });
         }
       });
 
-      drawObjects[updatedLayer] = intersectsObject;
+      vectorLayers.push(vectorLayer);
     });
 
-    this.setState({ drawObjects });
-    this.props.getDataOnDraw(drawObjects);
-  }
+    const view = new ol.View({
+      center: ol.proj.fromLonLat(this.props.center),
+      zoom: this.props.zoom,
+      minZoom: this.props.minZoom,
+      maxZoom: this.props.maxZoom,
+      extent: [
+        ol.proj.fromLonLat(this.props.maxBounds[0]),
+        ol.proj.fromLonLat(this.props.maxBounds[1])
+      ]
+        .toString()
+        .split(",")
+    });
 
-  onDrawCreate(drawObject, editableLayers) {
-    this.map.addLayer(drawObject.layer);
-    const intersectsObject = [];
-    let currentForm;
-    const drawbbox = polygon(drawObject.layer.toGeoJSON().geometry.coordinates);
-
-    this.state.config.layers.forEach(layer => {
-      if (layer.display) {
-        layer.data.features.forEach(feature => {
-          try {
-            currentForm =
-              feature.geometry.type === "LineString"
-                ? lineString(feature.geometry.coordinates)
-                : polygon(feature.geometry.coordinates);
-            if (booleanIntersects(currentForm, drawbbox)) {
-              intersectsObject.push(feature);
-            }
-          } catch (e) {
-            console.error("error", e, feature); // eslint-disable-line no-console
+    this.map = new ol.Map({
+      controls: ol.control
+        .defaults({
+          attributionOptions: {
+            collapsible: false
           }
-        });
-      }
+        })
+        .extend([]),
+      target: this.mapContainer,
+      layers: [sourceLayer, vectorDraw, ...vectorLayers],
+      view
     });
 
-    const drawObjects = { ...this.state.drawObjects };
-    drawObjects[drawObject.layer._leaflet_id] = intersectsObject;
-
-    editableLayers.addLayer(drawObject.layer);
-
-    this.setState({ drawObjects });
-    this.props.getDataOnDraw(drawObjects);
-  }
-
-  onDrawDelete(deletedObjects) {
-    const drawObjects = { ...this.state.drawObjects };
-
-    [Object.keys(deletedObjects.layers._layers)][0].forEach(layer => {
-      delete drawObjects[Number(layer)];
-    });
-
-    this.setState({ drawObjects });
-    this.props.getDataOnDraw(drawObjects);
-  }
-
-  addData(data, getDataOnClick) {
-    const flattenConfig = { ...data.config };
-    flattenConfig.layers = data.layers.map(layer => ({
-      ...layer,
-      data: flatten(layer.data)
-    }));
-    const newLayers = [];
-    // Remove source and layer before add if exist
-    flattenConfig.layers.forEach(layer => {
-      if (layer.display && layer.paint) {
-        const newLayer = L.geoJSON(layer.data, {
-          style: feature => layer.paint(feature)
-        }).addTo(this.map);
-        newLayers.push(newLayer);
-      }
-    });
-    if (getDataOnClick) {
-      newLayers.forEach(currentLayer => {
-        currentLayer.on("click", layerData => {
-          getDataOnClick(layerData.layer);
-        });
-      });
+    if (this.props.getDataOnHover) {
+      this.map.on("pointermove", e => this.onHover(e));
     }
-    return flattenConfig;
+
+    if (this.props.getDataOnClick) {
+      this.map.on("click", e => this.onClick(e));
+    }
+
+    this.sourceDraw.on("addfeature", event => {
+      if (this.props.getGeometryOnDrawEnd) {
+        this.props.getGeometryOnDrawEnd(
+          event.feature.getGeometry().getCoordinates()
+        );
+      }
+    });
+  }
+
+  startDrawPolygon() {
+    this.stopDraw();
+
+    this.draw = new ol.interaction.Draw({
+      source: this.sourceDraw,
+      type: "Polygon"
+    });
+
+    this.map.addInteraction(this.draw);
+  }
+
+  startDrawLine() {
+    this.stopDraw();
+
+    this.draw = new ol.interaction.Draw({
+      source: this.sourceDraw,
+      type: "LineString"
+    });
+
+    this.map.addInteraction(this.draw);
+  }
+
+  stopDraw() {
+    if (this.draw) {
+      this.map.removeInteraction(this.draw);
+    }
+  }
+
+  onHover(event) {
+    const features = this.map.getFeaturesAtPixel(event.pixel, {
+      layerFilter: e =>
+        this.props.config.vectorLayers
+          .map(a => a.name)
+          .indexOf(e.get("name")) !== -1
+    });
+
+    if (features) {
+      this.props.getDataOnHover(features[0].getProperties());
+    }
+  }
+
+  onClick(event) {
+    const features = this.map.getFeaturesAtPixel(event.pixel, {
+      layerFilter: e =>
+        this.props.config.vectorLayers
+          .map(a => a.name)
+          .indexOf(e.get("name")) !== -1
+    });
+
+    if (features) {
+      this.props.getDataOnClick(features[0].getProperties());
+    }
   }
 
   render() {
@@ -223,25 +146,26 @@ export default class TerraDrawMap extends Component {
 }
 
 TerraDrawMap.propTypes = {
+  minZoom: PropTypes.number,
+  maxZoom: PropTypes.number,
   zoom: PropTypes.number,
   center: PropTypes.arrayOf(PropTypes.number),
   maxBounds: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.number)),
-  getDataOnDraw: PropTypes.func,
+  getGeometryOnDrawEnd: PropTypes.func,
   getDataOnClick: PropTypes.func,
-  config: PropTypes.shape({
-    // eslint-disable-line react/no-unused-prop-types
-    id: PropTypes.any,
-    display: PropTypes.bool,
-    type: PropTypes.string,
-    paint: PropTypes.shape({}),
-    data: PropTypes.shape({})
-  }).isRequired
+  getDataOnHover: PropTypes.func
 };
 
 TerraDrawMap.defaultProps = {
+  config: {
+    vectorLayers: []
+  },
+  minZoom: 11,
+  maxZoom: 20,
   zoom: 11,
-  center: [48.40813, 2.62322],
-  maxBounds: [[48.1867854393, 2.2917527636], [48.6260818006, 3.1004132613]],
-  getDataOnDraw: () => {},
-  getDataOnClick: () => {}
+  center: [2.62322, 48.40813],
+  maxBounds: [[2.2917527636, 48.1867854393], [3.1004132613, 48.6260818006]],
+  osmSource: ""
 };
+
+export default TerraDrawMap;
