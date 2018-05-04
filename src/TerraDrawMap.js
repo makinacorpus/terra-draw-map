@@ -10,7 +10,8 @@ class TerraDrawMap extends Component {
     });
     this.sourceDraw = new ol.source.Vector({ wrapX: false });
     const vectorDraw = new ol.layer.Vector({
-      source: this.sourceDraw
+      source: this.sourceDraw,
+      zIndex: 100
     });
     let vectorLayers = [];
     const vectorSourceLayer = new ol.source.VectorTile({
