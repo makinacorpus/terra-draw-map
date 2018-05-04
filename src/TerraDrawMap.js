@@ -13,19 +13,33 @@ class TerraDrawMap extends Component {
       source: this.sourceDraw
     });
     let vectorLayers = [];
+    const vectorSourceLayer = new ol.source.VectorTile({
+      format: new ol.format.MVT(),
+      url: this.props.config.sourceVectorUrl,
+      renderMode: "hybrid"
+    });
     this.props.config.vectorLayers.forEach(layer => {
       const vectorLayer = new ol.layer.VectorTile({
         name: layer.name,
         maxResolution: 156543.03392804097 / Math.pow(2, layer.minZoom - 1),
-        source: new ol.source.VectorTile({
-          format: new ol.format.MVT(),
-          url: layer.url,
-          renderMode: "hybrid"
-        }),
+        source: vectorSourceLayer,
+        zIndex: layer.zIndex ? layer.zIndex : 1,
         style: (feature, resolution) => {
-          if (layer.type === "line") {
+          if (
+            layer.type === "line" &&
+            feature.getProperties().layer === layer.layerName
+          ) {
             return new ol.style.Style({
               stroke: new ol.style.Stroke(
+                layer.style.draw(feature.get(layer.style.property))
+              )
+            });
+          } else if (
+            layer.type === "polygon" &&
+            feature.getProperties().layer === layer.layerName
+          ) {
+            return new ol.style.Style({
+              fill: new ol.style.Fill(
                 layer.style.draw(feature.get(layer.style.property))
               )
             });
@@ -157,9 +171,7 @@ TerraDrawMap.propTypes = {
 };
 
 TerraDrawMap.defaultProps = {
-  config: {
-    vectorLayers: []
-  },
+  config: { sourceVectorUrl: "", vectorLayers: [] },
   minZoom: 11,
   maxZoom: 20,
   zoom: 11,
